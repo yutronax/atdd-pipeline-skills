@@ -22,7 +22,7 @@ taint akışı. Bu skill onları deterministik araçlarla kanıtlar. Bölüşüm
 Araç bulgusu olmaması **güvenli demek değildir** — sadece "bilinen imza yok" demektir.
 
 ## Ön koşul
-`artifacts/<task-slug>/code_diff.md` varsa, değişen dosya listesini
+`obss_project/artifacts/<task-slug>/code_diff.md` varsa, değişen dosya listesini
 oradan al ve taramayı o dosyalarla sınırla. Tüm repoyu taramak hem yavaştır hem
 de göreve ait olmayan eski bulgularla gate'i kirletir.
 
@@ -75,6 +75,24 @@ Araç eksikse gate `MISSING` döner; bunu **PASS sayma**.
    dakikada bitmedi. Kapsamı daima değişen dosyalarla sınırla (ölçüm: 5 dosya
    = 2 saniye).
 
+6. **`--files` dosya-seviyesinde tarar, satır-seviyesinde DEĞİL — pre-existing
+   bulgular her seferinde FAIL olarak geri döner.** `scan.py` bir dosyayı
+   `--files` ile verdiğinde TÜM dosyayı tarar, sadece o görevin diff hunk'larını
+   değil. Sonuç: bir dosyada önceden var olan, o görevle ilgisiz bir bandit
+   bulgusu (örn. `admin_panel.py`'deki sabit `urlopen`/`bind-all` çağrıları)
+   her dosyaya dokunan görevde yeniden FAIL üretir (postmortem koşum 1,
+   2026-09-13 — 4+ görevde canlı tekrarlandı: `deepseek-primary-balance-alert`,
+   `onaylananlar-jsonl-append`, `ayarlar-sayfasi-temizlik-tasarim`,
+   `ai-hourly-spend-cap-ayarlar-panelinde`). Bu `MISSING`/hata değil — araç
+   doğru çalışıyor, sadece kapsamı dosya-seviyesinde. `verify` bunu HER
+   SEFERİNDE elle yeniden ispatlamak zorunda kalmasın diye: FAIL alınca hemen
+   `git diff -U0 -- <dosya>` (veya `git show HEAD:<dosya>` ile satırı karşılaştır)
+   çalıştırıp bulgunun satır numarasının görevin gerçek diff hunk aralığında
+   olup olmadığını kontrol et. Diff dışındaysa raporda ham `FAIL` yazma —
+   "FAIL (ama pre-existing, bu görevin diff'i dışında — <kanıt>)" yaz, tıpkı
+   yukarıdaki 4 görevde yapıldığı gibi. Diff İÇİNDEYSE bu gerçek bir yeni
+   bulgu, normal FAIL olarak işlenir.
+
 ## Yanlış pozitif yönetimi
 Gerçek projede ilk koşum neredeyse her zaman yanlış pozitif verir (test
 fixture'ı, cache dosyası). Kurt masalı anlatan gate okunmaz hale gelir.
@@ -101,7 +119,7 @@ Bu, mevcut bulguları `.secrets.baseline`'a yazar; sonraki koşumlarda sadece
 - `npm audit` sadece `high`/`critical` seviyeyi FAIL sayar.
 
 ## Raporlama
-`artifacts/<task-slug>/security_scan.md` dosyasına yaz:
+`obss_project/artifacts/<task-slug>/security_scan.md` dosyasına yaz:
 gate tablosu (PASS/FAIL/N/A + gerekçe), bulgular, ve **hangi kapsamda**
 tarandığı. Bir gate `ERROR`/`TIMEOUT` ise sonuç `INCONCLUSIVE`'dir — bunu
 asla PASS diye raporlama.

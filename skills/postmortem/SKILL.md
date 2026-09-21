@@ -28,7 +28,7 @@ diye sorduğunda.
 ```
 
 `<docs_dizini>` her görev için bir alt dizin içerir (her birinde `red_team.json`) —
-örn. `your-repo/docs`. Son N göreve bakmak için `--since-tasks N`,
+örn. `kullanici-profili/docs`. Son N göreve bakmak için `--since-tasks N`,
 makine-okunur çıktı için `--json`.
 
 Script aynı `<docs_dizini>` taramasında, her görev alt klasöründe varsa

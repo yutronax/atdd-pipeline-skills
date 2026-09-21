@@ -75,7 +75,7 @@ gibi bir script dosyasıyla çalıştır):
 
 ```python
 import sys
-sys.path.insert(0, r"/path/to/your/bridge")
+sys.path.insert(0, r"C:\obss_bridge")
 import ask_codex
 
 result = ask_codex.analyze_screenshot(

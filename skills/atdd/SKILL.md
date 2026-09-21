@@ -1,6 +1,6 @@
 ---
 name: atdd
-description: Tool-independent ATDD skill — asks 8-12 adaptive clarification questions (skips categories the user already answered), writes atdd.md with YAML frontmatter (task_slug, priority, coverage_target, performance_target, test_strategy, affected_modules) + Markdown body (Persona, Goal, User Story, prioritized Acceptance Criteria, a mandatory behaviour-contract table pinning what each error case returns, Risks/Assumptions/Unknowns, Test Strategy, Benchmark). Does NOT chain into other pipeline steps (see pipeline). For Jira sync see `jira-sync`, for Saga tasks see `saga` skill.
+description: Tool-independent ATDD skill — asks 8-12 adaptive clarification questions (skips categories the user already answered), writes atdd.md with YAML frontmatter (task_slug, priority, threat_model, coverage_target, performance_target, test_strategy, affected_modules) + Markdown body (Persona, Goal, User Story, prioritized Acceptance Criteria, a mandatory behaviour-contract table pinning what each error case returns, a mandatory threat-model trigger check, Risks/Assumptions/Unknowns, Test Strategy, Benchmark). Does NOT chain into other pipeline steps (see pipeline). For Jira sync see `jira-sync`, for Saga tasks see `saga` skill.
 ---
 
 # ATDD Skill
@@ -42,7 +42,7 @@ yapma (bunun yerine ilgili skill'i çağır), burada bir sonraki skill'e otomati
      `tracker_search`) ile bu task-slug için zaten bir Saga kaydı var mı
      kontrol et; yoksa `mcp__saga__task_create` ile aç. Başlık formatı
      **zorunlu**: `<proje klasörü adı> - <görev başlığı>` (örn.
-     `my-app - feature-slug`). Dönen `task_id`'yi atdd.md'nin
+     `linkedin - omniroute-ayri-profil`). Dönen `task_id`'yi atdd.md'nin
      frontmatter'ına (`saga_task_id`) yaz — bu, uzun bir pipeline sohbeti
      yarıda kesilip yeni bir sohbette devam edilmek zorunda kalırsa (bkz.
      `pipeline` skill'inin "context doldu" notu) ilerlemenin kaybolmaması
@@ -154,11 +154,42 @@ yapma (bunun yerine ilgili skill'i çağır), burada bir sonraki skill'e otomati
 
 5. **ATDD taslağını doldur** (şablon aşağıda), cevapları birebir kullanarak —
    soru sorup cevabı görmezden gelme, önceden netleşmiş kategorileri de dahil et.
-6. **Kaydet.** `artifacts/<task-slug>/atdd.md` yoluna yaz (klasör
+
+5b. **Threat-model tetikleyici kontrolü — zorunlu, atlanamaz.**
+
+   32 tamamlanmış görev geriye dönük tarandığında `threat-model` skill'i
+   **hiçbirinde** (0/32) çalıştırılmamış bulundu — aralarında auth/webhook/
+   admin-panel gibi tam da tetikleyici örneği olan görevler de vardı
+   (`strix-guvenlik-acigi-duzeltme`, 2026-09-12). Sebep: tetikleme kararı
+   tamamen orkestratörün "hatırlaması"na bırakılmıştı, hiçbir zorunlu adım
+   sormuyordu — sessizce atlandı, hiç fark edilmedi. Bu adım o boşluğu kapatır.
+
+   Şu tetikleyicilerden **en az biri** var mı kontrol et (bkz. `threat-model`
+   SKILL.md "Ne zaman çalışır"): kimlik doğrulama/yetkilendirme, kullanıcı
+   girdisi, dosya yükleme/indirme, ödeme, kişisel veri (KVKK), çok kiracılı
+   (multi-tenant) sınır, dış API çağrısı, arka plan işi, yeni bir HTTP ucu.
+
+   - **Varsa:** taslağı kaydetmeden (6. adımdan) ÖNCE `threat-model` skill'ini
+     şimdi çağır (`Skill` tool). O, AC-S<n> kriterlerini ve
+     `threat_model: done` frontmatter alanını doğrudan atdd.md'ye ekleyecek —
+     6. adımdaki kayıt o hâliyle yapılır.
+   - **Yoksa:** frontmatter'a `threat_model: not-applicable` yaz VE "Threat
+     Model" bölümüne hangi tetikleyicilerin değerlendirilip neden hiçbirinin
+     uymadığını tek satırda yaz. "Değerlendirilmedi" veya boş bırakmak KABUL
+     EDİLMEZ — karar kaydı zorunlu, kararın kendisi (evet/hayır) serbest.
+
+   Bu adım atlanırsa 6. adımdaki kayıt eksik sayılır — Hard Stop (7. adım)
+   öncesi frontmatter'da `threat_model:` alanı boş olamaz.
+
+6. **Kaydet.** `obss_project/artifacts/<task-slug>/atdd.md` yoluna yaz (klasör
    yoksa oluştur). Var olan bir dosyayı sessizce ezme — üzerine yazmadan önce
    kullanıcıya söyle.
-7. **DUR VE ONAY BEKLE (Hard Stop).** Kaydettikten sonra kullanıcıya dosya yolunu ver ve ŞUNU SOR: *"atdd.md dosyasını oluşturdum. Lütfen dosyayı okuyun ve yanlış/eksik bir varsayım varsa düzeltin. Onaylıyorsanız 'devam' deyin, sonraki adıma geçelim."*
-   Kullanıcı açıkça onay vermeden KESİNLİKLE kendi kendine `plan` veya `code-copilot` adımlarına geçme. Onay geldiğinde (veya düzeltmeler yapıldığında) pipeline'ın sonraki adımı başlar.
+7. **DUR VE ONAY BEKLE (Hard Stop).** Kaydettikten sonra kullanıcıya dosya yolunu ver ve ŞUNU SOR: *"atdd.md dosyasını oluşturdum. Lütfen dosyayı okuyun ve yanlış/eksik bir varsayım varsa düzeltin. Onaylıyorsanız 'devam' deyin, sonraki adıma geçelim."* Cevabında `threat_model:` durumunu da belirt (ör. "threat-model çağrıldı, AC-S1/AC-S2 eklendi" veya "threat-model tetikleyici yok, gerekçe atdd.md'de").
+   Kullanıcı açıkça onay vermeden KESİNLİKLE kendi kendine `plan` veya `code-copilot` adımlarına geçme.
+
+   **"Devam" onayının anlamı — canlı olarak tespit edilen bir sapmanın düzeltmesi (2026-09-19):** Bir görevde `atdd.md` onaylandıktan sonra orkestratör `plan`/`test-copilot`/`code-copilot`'u hiç çağırmadan doğrudan kendi `Write`/`Edit`/`Bash` araçlarıyla implementasyonu ve testleri yazdı — pipeline'ın "orkestratör asla kod/test yazmaz, sadece Haiku alt-ajanına dispatch eder" kuralı (`code-copilot`/`test-copilot` SKILL.md'lerinin "The one rule that can't bend" bölümü) tamamen atlandı. Sebep: kullanıcının "commite kadar devam" gibi genel bir talimatı, orkestratör tarafından "en kısa yoldan görevi bitir" olarak yorumlandı, `pipeline` skill'ine hiç bakılmadı.
+
+   Bunu önlemek için: kullanıcı "devam" (veya "commite kadar devam" gibi bir varyasyon) dediğinde, bu **pipeline'ın TAMAMININ, adım atlanmadan, sırayla çalıştırılması** anlamına gelir: `plan` → `test-copilot` → `code-copilot` → `verify` → `refactor` → `red-team` → (kullanıcı onayıyla) `commit`. Orkestratör bu adımların HİÇBİRİNDE kendi `Write`/`Edit` aracıyla implementasyon veya test dosyası yazmaz — `test-copilot`/`code-copilot`'un kendi Haiku alt-ajan dispatch mekanizması kullanılır, `pipeline` skill'i açıkça çağrılıp sıra ondan teyit edilir. Kullanıcının "devam" demesi, ATDD onayı dışında hiçbir adımı otomatik "atla" anlamına gelmez — sadece `plan`'ın (veya sonraki bir adımın) kendi açık-soru durumunda tekrar durmasını engellemez (bkz. `plan` SKILL.md adım 5-6).
 
 ## ATDD Şablonu (atdd.md içeriği — YAML frontmatter + Markdown)
 
@@ -167,6 +198,7 @@ yapma (bunun yerine ilgili skill'i çağır), burada bir sonraki skill'e otomati
 task_slug: <task-slug>
 jira_id: <JIRA-ID veya null>
 saga_task_id: <id veya null>
+threat_model: done | not-applicable
 priority: critical | high | medium | low
 coverage_target: <yüzde, örn. 85>
 performance_target: <örn. "<200ms" veya null>
@@ -204,6 +236,11 @@ So that <benefit>
 3. [Medium] ...
 (en az happy path [Critical] + 2 edge case olacak şekilde; test-copilot
 Critical olanları önce yazabilsin diye öncelik etiketi zorunlu)
+
+## Threat Model
+(5b adımının zorunlu karar kaydı — boş bırakılamaz)
+- `threat-model` çağrıldıysa: "Çağrıldı — AC-S<n> kriterleri yukarıdaki Acceptance Criteria'ya eklendi."
+- Çağrılmadıysa: "Tetikleyici yok — değerlendirilen tetikleyiciler: <liste>, hiçbiri uymadı çünkü <1 cümle gerekçe>."
 
 ## Agentic Değerlendirme Kriterleri (opsiyonel — sadece görev bir LLM agent/sub-agent tool-calling davranışını veya prompt'unu değiştiriyorsa doldurulur)
 Tetikleyici yoksa bu bölümü sil, "tetikleyici yok" yazma.
@@ -289,5 +326,9 @@ tekrarladı, bkz. proje hafızası).>
   **birebir** atdd.md'ye göm — sonraki skill'ler bir daha Jira'ya sorgu
   atmamalı, hepsi atdd.md'den okumalı.
 - Acceptance Criteria'da öncelik etiketi ([Critical]/[High]/[Medium]) zorunlu.
+- **`threat_model:` frontmatter alanı `done` veya `not-applicable` olmadan
+  6. adıma (kaydet) geçilmez** — "değerlendirilmedi"/boş kabul edilmez
+  (bkz. 5b). Bu, 4a'daki davranış-sözleşmesi zorunluluğuyla aynı sınıftan:
+  karar serbest, kararın kaydı zorunlu.
 - `test_strategy` yüzdeleri toplamı 100 olmalı; kullanıcı vermediyse proje
   tipine göre makul bir varsayılan öner ve **onaylat**, sessizce icat etme.

@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Runs the real quality-gate checklist (build/lint/type-check/unit/e2e/accessibility/security/etc.) against the project and reports PASS/FAIL/N/A per gate — never authors or fixes code, never runs Copilot. Use this after code-copilot has made the tests pass, as the TDD/ATDD pipeline's refactor gate (atdd → test-copilot → code-copilot → verify → red-team → human approval).
+description: Runs the real quality-gate checklist (build/lint/type-check/unit/e2e/accessibility/security/etc.) against the project and reports PASS/FAIL/N/A per gate — never authors or fixes code, never runs Copilot. Use this after code-copilot has made the tests pass, as the TDD/ATDD pipeline's refactor gate (atdd → test-copilot → code-copilot → verify → red-team → human approval). When unit tests are green, runs a mandatory refactor-candidate check before its report is done — a real candidate gets surfaced to the user instead of silently skipped.
 ---
 
 # Verify — quality gates only, no authoring
@@ -15,7 +15,7 @@ description: Runs the real quality-gate checklist (build/lint/type-check/unit/e2
 - Format kontrollerini ve CI komutlarını birebir çalıştır.
 
 ## Precondition
-`artifacts/<task-slug>/code_diff.md` should exist (from
+`obss_project/artifacts/<task-slug>/code_diff.md` should exist (from
 `code-copilot`, run after `test-copilot`) so you know which files/surfaces to
 verify. `test_diff.md`'s (from `test-copilot`) "AC -> Test Mapping" section tells you which
 test files to run — read it if present, don't guess.
@@ -135,7 +135,7 @@ canonical command.
 
 ## Report
 
-Write `artifacts/<task-slug>/verify_report.md`:
+Write `obss_project/artifacts/<task-slug>/verify_report.md`:
 
 ```markdown
 # Verify Report — <task-slug>
@@ -165,6 +165,37 @@ _Reference: atdd.md, code_diff.md, test_report.md (if present)_
 ## Coverage / Quality Notes
 <any AC with no covering test, pyramid imbalance, code smells>
 ```
+
+## Refactor Aday Kontrolü — zorunlu karar noktası (2026-09-12)
+
+32 tamamlanmış görev geriye dönük tarandığında `refactor`'ün **1/32**
+gerçekten çalıştığı bulundu (sadece bir kez, kullanıcı `strix-guvenlik-
+acigi-duzeltme` görevinde elle çağırdığı için) — pipeline "red→green→refactor"
+diyordu ama üçüncü adım fiilen hiç işlemiyordu. Sebep `threat-model`/
+`frontend-pipeline` ile aynı: `refactor`'ün kendi Ön Koşulu ("tüm testler
+yeşil olmalı") tam da bu skill'in sonunda karşılanıyor, ama hiçbir zorunlu
+adım bu noktada "refactor'e bakalım mı" diye sormuyordu.
+
+**Sadece unit testler (gate 6) PASS ise** (kırmızı testte refactor
+çalışmaz, `refactor`'ün kendi kuralı), bu skill'in raporunu yazmadan hemen
+önce şu kontrolü yap — atlanamaz:
+
+- Değişen dosyalarda (`code_diff.md`'nin kapsamı) `refactor`'ün kendi
+  aday kriterlerine (ölçülebilir tekrar, sihirli sayı, derin nesting,
+  uzun parametre listesi, ölü kod) bakılınca göze çarpan **somut** bir
+  aday var mı? "Daha temiz olurdu" gibi öznel bir izlenim yeterli değil —
+  `ponytail` gereği varsayılan cevap "dokunma", sadece ölçülebilir bir
+  gerekçe varsa aday sayılır.
+- **Aday varsa:** `verify_report.md`'ye "Refactor adayı bulundu: <dosya,
+  1 cümle gerekçe> — kullanıcıya `refactor` skill'ini öner" diye yaz ve
+  kullanıcıya bunu söyle (otomatik çağırma, sadece öner — `refactor`'ün
+  kendi kapsamı task-özel, senin kararın değil).
+- **Aday yoksa:** rapora tek satır not düş: "Refactor adayı yok (diff
+  zaten minimal/CAVEMAN'a uygun)." Bu, kontrolün fiilen yapıldığını,
+  sessizce atlanmadığını kayda geçirir.
+
+Bu kontrolü hiç yapmadan raporu tamamlamak KABUL EDİLMEZ — "aday yok"
+sonucuna varmak için bile yukarıdaki kriterlere bakılmış olmalı.
 
 ## If a gate fails
 Don't fix it yourself. If the failure is in test code, tell the user to

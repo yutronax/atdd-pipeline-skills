@@ -14,7 +14,7 @@ Usage:
 
 <docs_dir> holds one subdirectory per task, each with an
 agentic_judge/*.json per evaluated conversation (e.g.
-your-repo/docs/<task-slug>/agentic_judge/<conversation_id>.json).
+kullanici-profili/docs/<task-slug>/agentic_judge/<conversation_id>.json).
 """
 
 from __future__ import annotations

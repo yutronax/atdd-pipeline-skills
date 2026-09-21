@@ -19,6 +19,28 @@ description: Pure routing skill for test authoring in the TDD/ATDD pipeline — 
 > hiçbir git komutu kullanma. Sadece dosya içeriğini Write/Edit ile
 > değiştir. Commit tamamen ayrı, kullanıcı onaylı bir adımda yapılır."
 
+> **`sys.modules` KİRLİLİĞİ YASAĞI.** maviLojistik'te bir Haiku alt-ajanı
+> (heavy bağımlılıkları — `google.genai`, `pymongo`, `dotenv` vb. —
+> collection zamanında import edilemeyecekleri için) `sys.modules['proje.
+> kendi.modülü'] = MagicMock()` yazıp bunu HİÇ GERİ ALMADI. Pytest tüm
+> test dosyalarını collection aşamasında import ettiği için bu, tüm
+> sürecin paylaştığı `sys.modules` cache'ini kalıcı kirletti — 7 tamamen
+> alakasız test dosyasındaki testler AYLARCA "Got: MagicMock" hatasıyla
+> fail etti, kök nedeni bulmak günler sürdü (bkz. proje hafızası,
+> `test-sys-modules-izolasyon-korumasi` görevi). `monkeypatch.setitem(
+> sys.modules, ...)` collection-time (modül seviyesi) mock'lar için
+> KULLANILAMAZ — sadece fonksiyon/fixture içinde çalışır. Bu yüzden her
+> dispatch prompt'unun sonuna şu satır da eklenir: "3.PARTİ OLMAYAN
+> (PROJENİN KENDİ) bir modülü `sys.modules[...] = mock` ile değiştirirsen,
+> ihtiyacın biten yerde (genelde asıl import satırından hemen sonra)
+> MUTLAKA `del sys.modules['o.modül']` ile geri al — geri almazsan bu
+> kirlilik BAŞKA test dosyalarını da bozar, sen fark etmesen bile." Yeni/
+> sıfırdan başlayan bir projede ilk `conftest.py` yazılırken, mümkünse
+> `pytest_collection_finish` hook'lu bir tespit mekanizması (kirlenen
+> proje-kendi modülleri collection bitiminde tarayıp bulursa `pytest.exit()`
+> ile süreci hemen ve açıkça durdurur) önerilir — otomatik "restore" değil
+> ama sessiz aylarca-kırmızı-CI'yi saniyeler içinde tespite çevirir.
+
 ## Kullanılacak destek skiller
 - `caveman`, `ponytail` (full) — her zaman aktif.
 - `superpowers:subagent-driven-development` — test dosyaları birden çok modülü kapsıyorsa, birden fazla Haiku alt-ajan çağrısına bölmek için.
@@ -48,7 +70,7 @@ bridge for the **test-authoring** side of an ATDD task.
   saw it.
 
 ## Precondition
-`artifacts/<task-slug>/atdd.md` must already exist (and
+`obss_project/artifacts/<task-slug>/atdd.md` must already exist (and
 `plan.md` if the `plan` skill ran). If atdd.md is missing, say so and point
 at the `atdd` skill — don't guess at scope.
 
@@ -71,6 +93,20 @@ easiest to skip and most expensive to miss:
 Also assert that "empty result" and "error" are distinguishable where the
 contract says they must be — identical return values for "no data" and "not
 allowed" is a contract violation, not a detail.
+
+**Sayısal validasyon içeren bir AC varsa, sınır/özel değerleri MUTLAKA test
+et (postmortem koşum 1, 2026-09-13 — `ai-hourly-spend-cap-ayarlar-panelinde`
+görevinde canlı tespit edildi).** `float(v)` + `value < 0` gibi bir
+validasyon, `"abc"` gibi "normal geçersiz" string'leri yakalasa da
+`float("inf")`, `float("-inf")`, `float("nan")` gibi teknik olarak geçerli
+float'ları GEÇİRİR — bunların hepsi `< 0` kontrolünü `False` ile geçer.
+Sonraki bir karşılaştırma (`cost > cap` gibi) `cap=inf` ise hiçbir zaman
+tetiklenmez, `cap=nan` ise HER ZAMAN `False` döner — yani validasyon
+"geçti" görünür ama arkasındaki iş mantığı sessizce devre dışı kalır. Bir
+AC "geçersiz sayısal girdi reddedilir" diyorsa test setine şunları da ekle:
+boş string, negatif, sıfır (geçerliyse ayrı test), `"inf"`, `"-inf"`,
+`"nan"` — bunlar atlanırsa red-team'in yakalaması gereken bir güvenlik/
+doğruluk bulgusu, test-copilot'un kaçırdığı bir edge case olarak kalır.
 
 If atdd.md has no behaviour-contract table (written before this section
 existed), say so and test the error cases from the Acceptance Criteria — but
@@ -115,6 +151,17 @@ add/commit/checkout/reset/restore/stash dahil hiçbir git komutu kullanma.
 Sadece dosya içeriğini Write/Edit ile değiştir. Commit tamamen ayrı,
 kullanıcı onaylı bir adımda yapılır — bu senin işin değil.
 
+## sys.modules KİRLİLİĞİ YASAĞI
+Ağır/opsiyonel bağımlılıkları (google.genai, pymongo, dotenv vb.) test
+dosyasının en üstünde `sys.modules['x'] = MagicMock()` ile stub'lamak
+gerekiyorsa bunu yap — ama 3.PARTİ OLMAYAN (PROJENİN KENDİ) bir modülü
+aynı şekilde değiştirirsen, ihtiyacın biten yerde (genelde asıl import
+satırından hemen sonra) MUTLAKA `del sys.modules['o.modül']` ile geri al.
+Geri almazsan bu, pytest'in paylaştığı `sys.modules` cache'ini kalıcı
+kirletir ve BAŞKA test dosyalarını da (sen fark etmesen bile) bozar —
+bu projede canlı olarak aylarca sürmüş bir olay bu (bkz.
+test-sys-modules-izolasyon-korumasi görevi).
+
 ## ARAMA KAPSAMI
 Grep/Glob/Bash ile arama yaparken HER ZAMAN yukarıdaki proje kökü ile
 sınırlı kal. Bu ortamda git reposunun kökü proje klasöründen daha geniş
@@ -146,7 +193,7 @@ speculatively; get the file list and project root right first.
 - `Read` the test files the sub-agent wrote, just enough to confirm they
   cover each Acceptance Criteria atdd.md lists (happy path + every edge
   case) — a presence check, not a quality review or a test run.
-- Write `artifacts/<task-slug>/test_diff.md`, listing the test
+- Write `obss_project/artifacts/<task-slug>/test_diff.md`, listing the test
   files created and which Acceptance Criteria each targets.
 
 ### 6. If the sub-agent's output looks wrong

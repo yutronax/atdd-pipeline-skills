@@ -94,7 +94,7 @@ Her uygulanan özelliğin atdd.md'de var olduğunu doğrula. atdd.md'nin dışı
 ## Adımlar (CLI ajanı tarafında)
 1. `atdd.md`, `code_diff.md`, `test_report.md`/`verify_report.md` dosyalarını (aynı `<task-slug>` altında) oku.
 2. Yukarıdaki 8 inceleme alanı + Scope Review + Risk Review'u uygula. Gerçek kodu değiştirme — sadece bulgu üret. `obss-red-team`'e dispatch ediyorsan, yukarıdaki "Şema uyuşmazlığı" notundaki ÇIKTI ŞEMASI talimatını prompt'a MUTLAKA ekle.
-3. Birleşik bulguları aşağıdaki JSON şemasıyla `artifacts/<task-slug>/red_team.json` dosyasına yaz:
+3. Birleşik bulguları aşağıdaki JSON şemasıyla `obss_project/artifacts/<task-slug>/red_team.json` dosyasına yaz:
 
 ```json
 {
@@ -153,6 +153,16 @@ gerekçeyi `reason` alanına yaz; yeni kategori uydurma.
 
 4. `findings`/`strengths`/`risks` boşsa boş dizi yaz, uydurma bulgu ekleme. Her bulgu somut kanıt, dosya referansı ve atdd.md referansıyla desteklenmeli.
 5. Kullanıcıya `red_team.json` yolunu, `verdict`'i ve `ready_to_commit` özetini bildir. Sonraki adımın (varsa `commit` skill'i) kullanıcı isteğiyle tetiklendiğini hatırlat — otomatik geçme.
+
+## `dynamic-pentest` ile ilişki — koşullu tamamlayıcı (2026-09-12, 2026-09-21'de Strix/OmniRoute'suz güncellendi)
+Bu adım bittikten sonra, aynı `<task-slug>`'ın `atdd.md`'sinde `threat-model`'in
+ürettiği gerçek bir `AC-S<n>` kriteri varsa, kullanıcıya `dynamic-pentest`'i de
+çalıştırmayı öner — `red-team` bulguyu **muhakeme ile** buluyor, `dynamic-pentest`
+(harici bir CLI değil, doğrudan bir Claude subagent'ı) **gerçek bir exploit
+denemesiyle kanıtlıyor**, ikisi aynı işi yapmıyor. `atdd.md`'de `AC-S` yoksa
+(`threat_model: not-applicable`) bu öneriyi yapma, görev commit'e hazır
+sayılır. `dynamic-pentest` her zaman kullanıcı onayıyla çalışır (otomatik
+tetiklenmez, sadece önerilir).
 
 ## Verdict Kuralları
 - **approve** — önemli bulgu yok.

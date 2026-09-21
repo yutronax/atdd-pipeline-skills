@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Between atdd and test-copilot (test-first pipeline: plan → test-copilot → code-copilot) — reads atdd.md and the real codebase to produce a concrete file-change plan (files to modify, new files, dependencies, migrations, risks) before any authoring call is made. Read-only (Glob/Grep/Read only), never writes implementation or test code. Reduces rework by giving test-copilot/code-copilot a sharper extra_instructions target instead of guessing scope from atdd.md alone.
+description: Between atdd and test-copilot (test-first pipeline: plan → test-copilot → code-copilot) — reads atdd.md and the real codebase to produce a concrete file-change plan (files to modify, new files, dependencies, migrations, risks) before any authoring call is made. Read-only (Glob/Grep/Read only), never writes implementation or test code. Reduces rework by giving test-copilot/code-copilot a sharper extra_instructions target instead of guessing scope from atdd.md alone. Runs a mandatory frontend-pipeline trigger check (step 0) before its own discovery — a UI-touching task hands off to `frontend-pipeline` first instead of silently skipping it.
 ---
 
 # Plan — file-impact planning, no authoring
@@ -19,11 +19,39 @@ authoring call already ran. This skill does that discovery up front, for
 free (no Codex call), using Claude's own read tools against the real repo.
 
 ## Precondition
-`artifacts/<task-slug>/atdd.md` must exist (from `atdd`,
+`obss_project/artifacts/<task-slug>/atdd.md` must exist (from `atdd`,
 optionally enriched by `jira-sync`). If missing, point at `atdd` — don't plan
 against a task that was never clarified.
 
 ## Steps
+
+0. **Frontend-pipeline tetikleyici kontrolü — zorunlu, atlanamaz (2026-09-12).**
+
+   32 tamamlanmış görev geriye dönük tarandığında `frontend-pipeline`'ın
+   **0/32** gerçekten çalıştığı bulundu (hiçbir `plan.md`'de "Discover"/
+   "Audit bulgu"/"Design Direction" izi yok) — hatta `Görsel/UI kriteri`
+   dolu olan görevlerde bile dedike `vision-test` skill'i atlanıp yerine
+   ad-hoc Playwright ekran görüntüsü + doğrudan okuma kullanılmış. Sebep
+   `threat-model`/`postmortem` ile aynı: tetikleme tamamen orkestratörün
+   hatırlamasına bırakılmıştı. Bu adım o boşluğu kapatır — `plan`'ın
+   kendisi asıl keşfe (adım 1-4) başlamadan önce bunu sormak zorunda.
+
+   atdd.md'yi oku, `frontend-pipeline`'ın kendi tetikleyicilerini kontrol
+   et: "Etkilenen Dosyalar" `.tsx`/`.jsx`/`.vue`/`.css`/`.html`/sayfa
+   bileşeni içeriyor mu, VEYA "Benchmark / Başarı Ölçütü"ndeki "Görsel/UI
+   kriteri" dolu mu.
+
+   - **Tetikleyici varsa:** bu `plan` skill'ini DURDUR, `frontend-pipeline`
+     skill'ini şimdi çağır (`Skill` tool). O kendi Discover→Audit→Design
+     Direction adımlarını yürütüp çıktılarını `plan.md`'ye girdi olarak
+     verecek (bkz. `frontend-pipeline` adım 4) — bu skill'in kendi
+     1-4. adımları o zincirin PARÇASI olarak çalışır, ayrıca tekrar
+     keşfedilmez.
+   - **Tetikleyici yoksa:** `plan.md`'nin başına tek satır not düş:
+     "Frontend-pipeline: tetikleyici yok (backend-only görev)." ve normal
+     1. adıma geç.
+
+   Bu kontrolü hiç yapmadan (sessizce) 1. adıma geçmek KABUL EDİLMEZ.
 
 1. **Read atdd.md fully** — frontmatter (`affected_modules`, `priority`,
    `test_strategy`) and body (Acceptance Criteria, Kapsam Dışı, Rollback
@@ -47,9 +75,9 @@ against a task that was never clarified.
 3. **Check for migrations.** If the change implies a schema/data change
    (new table, new column, new required field), note it explicitly — this
    pipeline's projects generally forbid silent schema changes (see the
-   target repo's own CLAUDE.md/ADRs for the actual rule, e.g. a target repo's
+   target repo's own CLAUDE.md/ADRs for the actual rule, e.g. Group-9's
    ADR 0001 on `profiles.role`).
-4. **Write the plan** to `artifacts/<task-slug>/plan.md`:
+4. **Write the plan** to `obss_project/artifacts/<task-slug>/plan.md`:
 
 ```markdown
 # Plan — <task-slug>
@@ -85,13 +113,29 @@ Eğer "Files to Modify"/"New Files" bir rendered web UI dosyası (`.html`,
 adımında gate 11'in (`vision-test`) N/A değil aktif çalışacağı anlamına
 gelir, sonraki adımlar bunu unutmasın.
 
-5. If step 4 surfaced open questions, **Sonnet 5 alt-ajanına (low reasoning
-   effort) dispatch et** — `claude-omni` bu akıştan tamamen çıkarıldı
-   (işlevsiz/güvenilmezdi, canlı olarak defalarca tespit edildi):
+5. **Open Questions varsa DUR VE KULLANICIYA SOR — otomatik alt-ajana dispatch etme.**
 
-   Prompt (dosya yolu ver, özet metni prompt'a kopyalama — token tasarrufu:
-   sub-agent kendi bağlamında okusun, orkestratör aynı metni ikinci kez
-   üretmesin):
+   (2026-09-19 düzeltmesi: bu adım önceden Open Questions'ı sessizce bir
+   Sonnet alt-ajanına dispatch edip kullanıcıya hiç sormadan devam
+   ediyordu. Bu, `atdd`'nin Hard Stop kuralıyla tutarsızdı — atdd.md'de
+   belirsizlik varsa kullanıcıya soruluyor, ama aynı belirsizlik plan
+   aşamasında kod keşfinden çıkarsa sessizce bir alt-ajan kendi kendine
+   karar veriyordu. Artık ikisi de aynı kurala tabi: gerçek belirsizlik →
+   kullanıcıya sor, dur.)
+
+   - **Open Questions BOŞSA:** hiçbir şeyi durdurma, doğrudan 6. adıma geç.
+   - **Open Questions DOLUYSA:** kullanıcıya `plan.md`'nin yolunu ver ve
+     Open Questions bölümünü birebir göster, ŞUNU SOR: *"plan.md'yi
+     oluştururken şu açık sorular çıktı: <liste>. Lütfen yanıtlayın ya da
+     'sen karar ver' deyin. Onaylıyorsanız/yanıtladıysanız 'devam' deyin,
+     test-copilot'a geçelim."* Kullanıcı "sen karar ver" derse (veya
+     benzer bir yetki verirse), o zaman Sonnet 5 low alt-ajanına dispatch
+     edilir (aşağıdaki prompt ile) ve kararlar `(kullanıcı yetkisiyle
+     Sonnet 5 low alt-ajanı tarafından yanıtlandı)` notuyla `plan.md`'nin
+     "Kararlar" bölümüne yazılır. Kullanıcı açık cevap verirse doğrudan o
+     cevap kullanılır, alt-ajana gerek kalmaz.
+
+   Alt-ajana dispatch prompt'u (yalnızca kullanıcı yetki verdiyse):
    ```
    Aşağıdaki plan.md'deki açık sorulara YANIT ver.
    BU BİR ARAŞTIRMA GÖREVİ DEĞİL — SADECE şu iki dosyayı Read et:
@@ -113,15 +157,7 @@ gelir, sonraki adımlar bunu unutmasın.
      prompt: "<yukarıdaki prompt, birebir>",
    })
    ```
-   Kararları `plan.md`'nin "Kararlar" bölümüne `(Sonnet 5 low alt-ajanı
-   tarafından yanıtlandı: <gerekçe>)` notuyla yaz, sonra devam et — cheaper
-   to resolve now than after an implementation call.
-6. Tell the user `plan.md` is ready and the next step is `test-copilot`
-   (test-first — red step, NOT `code-copilot` directly; implementation
-   only follows once failing tests exist), which should pass this plan's
-   "Files to Modify"/"New Files" lists as its file scope instead of
-   re-deriving them from atdd.md alone. `code-copilot` runs after
-   `test-copilot`, per the pipeline order in `pipeline/SKILL.md`.
+6. **Open Questions yoksa (veya kullanıcı 5. adımda çözdüyse) DURMADAN doğrudan devam et.** Kullanıcıya `plan.md`'nin hazır olduğunu ve sonraki adımın `test-copilot` olduğunu söyle (test-first — red step, NOT `code-copilot` directly; implementation only follows once failing tests exist), which should pass this plan's "Files to Modify"/"New Files" lists as its file scope instead of re-deriving them from atdd.md alone — sonra **kendin** `test-copilot` skill'ini çağır, tekrar onay bekleme (atdd'nin Hard Stop'unda alınan "devam" onayı bu adımı zaten kapsıyor). `code-copilot` runs after `test-copilot`, per the pipeline order in `pipeline/SKILL.md`.
 
 ## Rule
 - Read-only. `Glob`, `Grep`, `Read`, and the `plan.md` report file only —

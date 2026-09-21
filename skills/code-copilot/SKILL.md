@@ -7,7 +7,7 @@ description: Pure routing skill for implementation code in the TDD/ATDD pipeline
 
 > **Adı tarihsel.** Yazma işi artık Codex CLI'da veya Aider'da değil, bir
 > Haiku alt-ajanında (`Agent` tool, `model: "haiku"`) yapılıyor 
-> kararıyla Codex bridge (`/path/to/your/codex_bridge.py`) ve `aider-bridge`
+> kararıyla Codex bridge (`C:\obss_bridge\ask_codex.py`) ve `aider-bridge`
 > bu skill'den kaldırıldı. Skill adı, boru hattının her yerinden referans
 > verildiği için değiştirilmedi.
 
@@ -60,8 +60,8 @@ Two decisions worth knowing before using this:
 
 ## Precondition
 Both must exist under the same `<task-slug>`:
-- `artifacts/<task-slug>/atdd.md`
-- `artifacts/<task-slug>/test_diff.md` (written by `test-copilot`)
+- `obss_project/artifacts/<task-slug>/atdd.md`
+- `obss_project/artifacts/<task-slug>/test_diff.md` (written by `test-copilot`)
 
 If either is missing, say so and point at the missing skill — don't write
 implementation code against tests that don't exist yet.
@@ -109,6 +109,16 @@ the simpler one.
 - Existing project conventions and structure respected.
 - No unnecessary files, abstractions, or public APIs.
 - Existing behavior outside these Acceptance Criteria unchanged.
+- Dış bağımlılık/kütüphane çağrısı başarısız olduğunda veya durum belirsizken
+  fallback her zaman **pessimist** (en güvenli/en az iyimser) varsayım
+  olmalı — "aksi kanıtlanana kadar sağlıklı/başarılı say" YASAK. Kullanılan
+  bir runtime seçeneğinin (ör. bir `fetch` çağrısına verilen `timeout`
+  alanı) gerçekten desteklendiği doğrulanmalı; sessizce yok sayılan
+  seçeneklere güvenilmemeli. (Kaynak: postmortem koşum 1, 2026-09-14 —
+  `uptime-izleme-pm2-recovery` görevinde red-team, `pm2 jlist` başarısız
+  olduğunda "process online" varsayımını ve desteklenmeyen `fetch({timeout})`
+  seçeneğinin sessizce yok sayılmasını yakaladı; `reliability` kategorisi
+  5 görevin 4'ünde tekrar etti.)
 
 ## Rapor formatı (yanıtının sonunda)
 1. Oluşturulan dosyalar.
@@ -173,7 +183,7 @@ only do this when the split is genuinely independent, not by default.
   prompt naming exactly what to remove/simplify.
 - Confirm no test file was touched — `test-copilot`'s tests are the fixed
   target, not something this step may adjust to make green.
-- Write `artifacts/<task-slug>/code_diff.md`, built from the
+- Write `obss_project/artifacts/<task-slug>/code_diff.md`, built from the
   sub-agent's own summary plus what `Read` actually confirmed. This is a
   report, not code, so `Write` is fine here.
 

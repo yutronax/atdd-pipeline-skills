@@ -9,7 +9,7 @@ Usage:
     python aggregate.py <docs_dir> [--since-tasks N] [--json]
 
 <docs_dir> is the directory holding one subdirectory per task, each with a
-red_team.json (e.g. your-repo/docs).
+red_team.json (e.g. kullanici-profili/docs).
 """
 
 from __future__ import annotations
